@@ -1,0 +1,134 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use threads;
+use Bio::SeqIO;
+use Bio::Align::DNAStatistics;
+use Cwd 'abs_path';
+use Bio::AlignIO;
+
+my ($max_cpu,$cds,$pep,$cluster_file,$tmp,$outputdir,$mafft,$pal2nal)=@ARGV;
+die "perl $0 max_cpu cds_file pep_file cluster_file tmp_dir output_dir mafft_path pal2nal_path\n" if (! $pal2nal);
+
+`mkdir $tmp` if (! -e $tmp);
+`mkdir $tmp/align` if (! -e "$tmp/align");
+`mkdir $outputdir/ks_martix` if (! -e "$outputdir/ks_martix");
+
+my $basedir=abs_path($0);
+$basedir=~s/\/[^\/]+\/[^\/]+$//;
+
+my %list=&read_cluster($cluster_file);
+my %cds=&read_fasta($cds);
+my %pep=&read_fasta($pep);
+
+for my $k1 (sort keys %list){
+    my %randnum;
+    `mkdir $tmp/align/$k1` if (! -e "$tmp/align/$k1");
+    `mkdir $tmp/align/$k1-out` if (! -e "$tmp/align/$k1-out");
+    `mkdir $outputdir/ks_martix/$k1` if (! -e "$outputdir/ks_martix/$k1");
+    my @seqid=sort keys %{$list{$k1}};
+    for (my $i=0;$i<@seqid;$i++){
+        my @cmd;
+        for (my $j=$i+1;$j<@seqid;$j++){
+            my $randnum="NA";
+            while(1){
+	$randnum=&randstr;
+	if (exists $list{$randnum}){
+	    $randnum="NA";
+	}else{
+	    $list{$randnum}++;
+	}
+	last if $randnum ne "NA";
+            }
+            push @cmd,"G$i";
+            push @cmd,"G$j";
+            push @cmd,$seqid[$i];
+            push @cmd,$seqid[$j];
+            push @cmd,$randnum;
+        }
+        my $jobs=0;
+        my $finish_jobs=0;
+        while (1) {
+            while (scalar(threads->list()) < $max_cpu) {
+	last if $jobs >= scalar(@cmd)/5;
+	$jobs++;
+	my ($outGid1,$outGid2,$needid1,$needid2,$needrandnum)=($cmd[(($jobs-1)*5)],$cmd[(($jobs-1)*5)+1],$cmd[(($jobs-1)*5)+2],$cmd[(($jobs-1)*5)+3],$cmd[(($jobs-1)*5)+4]);
+	threads->create(\&run_Nei_Gojobori_ks,$outGid1,$outGid2,$needid1,$needid2,$cds{$needid1},$pep{$needid1},$cds{$needid2},$pep{$needid2},$needrandnum,"$tmp/align/$k1","$tmp/align/$k1-out");
+            }
+            for my $single_job (threads->list(threads::all)){
+	if ($single_job -> is_joinable()){
+	    $single_job -> join();
+	    $finish_jobs++;
+	}
+            }
+            last if ($finish_jobs == (scalar(@cmd)/5));
+        }
+    }
+}
+
+sub run_Nei_Gojobori_ks{
+    my ($tmp_outid1,$tmp_outid2,$tmp_id1,$tmp_id2,$tmp_cds_seq1,$tmp_pep_seq1,$tmp_cds_seq2,$tmp_pep_seq2,$randid,$tmp_out_dir,$real_out_dir)=@_;
+    `mkdir -p $real_out_dir` if (! -e "$real_out_dir");
+    open (TO,">$tmp_out_dir/tmp_$randid.cds.fa")||die"$!";
+    print TO ">$tmp_outid1\n$tmp_cds_seq1\n>$tmp_outid2\n$tmp_cds_seq2\n";
+    close TO;
+    open (TO,">$tmp_out_dir/tmp_$randid.pep.fa")||die"$!";
+    print TO ">$tmp_outid1\n$tmp_pep_seq1\n>$tmp_outid2\n$tmp_pep_seq2\n";
+    close TO;
+    `$mafft --quiet $tmp_out_dir/tmp_$randid.pep.fa > $tmp_out_dir/tmp_$randid.pep.best.fas`;
+    `$pal2nal $tmp_out_dir/tmp_$randid.pep.best.fas $tmp_out_dir/tmp_$randid.cds.fa -output fasta -nogap -nomismatch > $tmp_out_dir/tmp_$randid.cds.best.fas`;
+    my $tmp_get_dna_aln = Bio::AlignIO -> new(-file=>"$tmp_out_dir/tmp_$randid.cds.best.fas", -format=>"fasta");
+    my $tmp_dna_aln = $tmp_get_dna_aln -> next_aln();
+    my $tmp_stats = Bio::Align::DNAStatistics->new();
+    my $result = $tmp_stats->calc_all_KaKs_pairs($tmp_dna_aln);
+    my ($Da, $Ds, $Dn, $N, $S, $S_d, $N_d);
+    for my $an (@$result){
+        for my $result_key (sort keys %$an ){
+            next if $result_key=~/Seq/;
+            if($result_key eq "D_n"){$Dn = $an->{$result_key}};
+            if($result_key eq "D_s"){$Ds = $an->{$result_key}};
+            if($result_key eq "S_d"){$S_d = $an->{$result_key};}
+            if($result_key eq "N_d"){$N_d = $an->{$result_key};}
+            if($result_key eq "S"){$S = $an->{$result_key};}
+            if($result_key eq "N"){$N = $an->{$result_key};}
+        }
+    }
+    if($Dn !~ /\d/){$Dn = 10;}
+    if($Ds !~ /\d/){$Ds = 10;}
+    open (TO,">$real_out_dir/$tmp_outid1-$tmp_outid2.out")||die "$!";
+    print TO "$tmp_outid1\t$tmp_outid2\t$Dn\t$Ds\n";
+    close TO;
+    `rm $tmp_out_dir/tmp_$randid.*`;
+}
+sub randstr{
+    my $maxLenth=16;
+    my @a = (0..9,'a'..'z','A'..'Z');
+    my $password = join '', map { $a[int rand @a] } 0..($maxLenth-1);
+    return $password;
+}
+sub read_fasta{
+    my ($tmp_in_file)=@_;
+    my $tmp_fa=Bio::SeqIO->new(-format=>"fasta",-file=>"$tmp_in_file");
+    my %r;
+    while (my $tmp_seq=$tmp_fa->next_seq) {
+        my $tmp_id=$tmp_seq -> id;
+        my $tmp_seq=$tmp_seq -> seq;
+        $r{$tmp_id}=$tmp_seq;
+    }
+    return %r;
+}
+sub read_cluster{
+    my ($tmp_in_file)=@_;
+    my %r;
+    open (F,"$tmp_in_file")||die"$!";
+    while (<F>) {
+        chomp;
+        my @a=split(/\s+/,$_);
+        $a[0]=~s/\:$//;
+        for (my $i=1;$i<@a;$i++){
+            $r{$a[0]}{$a[$i]}++;
+        }
+    }
+    close F;
+    return %r;
+}

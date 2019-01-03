@@ -1,0 +1,97 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Bio::SeqIO;
+use Cwd 'abs_path';
+
+my ($cds,$pep,$cluster_file,$tmp,$outputdir,$mafft,$pal2nal,$thread_num)=@ARGV;
+die "perl $0 cds_file pep_file cluster_file tmp_dir outputdir maff pal2nal\n" if (! $thread_num);
+
+`mkdir $tmp` if (! -e $tmp);
+`mkdir $tmp/align` if (! -e "$tmp/align");
+
+my $basedir=abs_path($0);
+$basedir=~s/\/[^\/]+\/[^\/]+$//;
+my $cluastermaxnum=50;
+my %list=&read_cluster($cluster_file);
+my %cds=&read_fasta($cds);
+my %pep=&read_fasta($pep);
+
+open (RUNKS,">$tmp/run.ks.sh")||die"$!";
+open (COLLECTKS,">$tmp/collect.ks.sh")||die"$!";
+for my $k1 (sort keys %list){
+    print COLLECTKS "perl $basedir/bin/collect_ks.pl $outputdir $k1 ";
+    my @gene=sort keys %{$list{$k1}};
+    if (scalar(@gene) <= 2*$cluastermaxnum){
+        open (O1,">$tmp/align/$k1.split_0.input.cds.file");
+        open (O2,">$tmp/align/$k1.split_0.input.pep.file");
+        for my $geneid (@gene){
+            print O1 ">$geneid\n$cds{$geneid}\n";
+            print O2 ">$geneid\n$pep{$geneid}\n";
+        }
+        close O1;
+        close O2;
+        print RUNKS "$basedir/bin/calculate_ks.pl $thread_num $tmp/align/$k1.split_0.input.cds.file $tmp/align/$k1.split_0.input.pep.file $mafft $pal2nal\n";
+        print COLLECTKS "$tmp/align/$k1.split_0.input.cds.file.align.output.ks.gz\n";
+    }else{
+        my $maxnum=int((scalar(@gene)*$cluastermaxnum)/scalar(@gene));
+        $maxnum++ if $maxnum < ((scalar(@gene)*$cluastermaxnum)/scalar(@gene));
+        my %outseq;
+        my $combindnum=0;
+        for (my $i=0;$i<@gene;$i++){
+            if (($i+1) % $maxnum == 0){
+	$combindnum ++ ;
+            }
+            $outseq{$combindnum}{$gene[$i]}++;
+        }
+        my @com=sort keys %outseq;
+        my $outfile=-1;
+        for (my $i=0;$i<@com;$i++){
+            for (my $j=$i+1;$j<@com;$j++){
+	$outfile++;
+	open (O1,">$tmp/align/$k1.split_$outfile.input.cds.file");
+	open (O2,">$tmp/align/$k1.split_$outfile.input.pep.file");
+	for my $k1 ($i,$j){
+	    for my $k2 (sort keys %{$outseq{$k1}}){
+	        print O1 ">$k2\n$cds{$k2}\n";
+	        print O2 ">$k2\n$pep{$k2}\n";
+	    }
+	}
+	close O1;
+	close O2;
+	print RUNKS "$basedir/bin/calculate_ks.pl $thread_num $tmp/align/$k1.split_$outfile.input.cds.file $tmp/align/$k1.split_$outfile.input.pep.file $mafft $pal2nal\n";
+	print COLLECTKS "$tmp/align/$k1.split_$outfile.input.cds.file.align.output.ks.gz ";
+            }
+        }
+    }
+    print COLLECTKS "\n";
+}
+close RUNKS;
+close COLLECTKS;
+
+sub read_fasta{
+    my ($tmp_in_file)=@_;
+    my $tmp_fa=Bio::SeqIO->new(-format=>"fasta",-file=>"$tmp_in_file");
+    my %r;
+    while (my $tmp_seq=$tmp_fa->next_seq) {
+        my $tmp_id=$tmp_seq -> id;
+        my $tmp_seq=$tmp_seq -> seq;
+        $r{$tmp_id}=$tmp_seq;
+    }
+    return %r;
+}
+sub read_cluster{
+    my ($tmp_in_file)=@_;
+    my %r;
+    open (F,"$tmp_in_file")||die"$!";
+    while (<F>) {
+        chomp;
+        my @a=split(/\s+/,$_);
+        $a[0]=~s/\:$//;
+        for (my $i=1;$i<@a;$i++){
+            $r{$a[0]}{$a[$i]}++;
+        }
+    }
+    close F;
+    return %r;
+}

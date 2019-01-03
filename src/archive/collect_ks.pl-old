@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my ($indir,$outdir,$num)=@ARGV;
+die "perl $0 input_calculate_ks_cluster_dir output_cluster_dir cluster_length\n" if ((! $num) || ($num !~ /^\d+$/));
+
+`mkdir -p $outdir` if (! -e "$outdir");
+
+my %outks;
+for (my $i=0;$i<$num;$i++){
+    for (my $j=$i+1;$j<$num;$j++){
+        my $file="$indir/G$i-G$j.out";
+        die "no such file $file\n" if (! -e "$file");
+        open (F,"$file");
+        while (<F>) {
+            chomp;
+            my @tmpa=split(/\s+/,$_);
+            $outks{$tmpa[0]}{$tmpa[1]}=$tmpa[3];
+            $outks{$tmpa[1]}{$tmpa[0]}=$tmpa[3];
+        }
+        close F;
+        `rm $file`;
+    }
+}
+
+open (OUTDIST,">$outdir/ks.dist")||die "$!";
+my @key1=sort keys %outks;
+print OUTDIST "\t",join("\t",@key1),"\n";
+for my $key1 (@key1){
+    print OUTDIST "$key1\t";
+    for my $key2 (@key1){
+        if ($key1 eq $key2){
+            print OUTDIST "0\t";
+        }else{
+            if (! exists $outks{$key1}{$key2}){
+	print OUTDIST "10\t";
+            }else{
+	print OUTDIST "$outks{$key1}{$key2}\t";
+            }
+        }
+    }
+    print OUTDIST "\n";
+}
+close OUTDIST;
