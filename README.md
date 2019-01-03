@@ -3,7 +3,7 @@
 WGDdetector: a pipeline for whole genome duplication (WGD) detecting with the genome or transcriptome annotations
 
 # Install
-## Software requirements
+## Software requirements (all path of the needed software should be list in this file WGDdetector_path/config/software.config)
 * perl >5.0, including the perl moudule of threads and Bioperl
 * python 2.7
 * R >= 3.5
@@ -16,7 +16,7 @@ WGDdetector: a pipeline for whole genome duplication (WGD) detecting with the ge
 * mafft
 
 ## Pipline install
-This pipline is a series perl scripts, you can just replace those scripts' header with the right perl path
+This pipline is a series perl scripts, you can just replace those scripts' header with the right perl path.
 ```
 cd WGDdetector_path
 perl setup.pl
