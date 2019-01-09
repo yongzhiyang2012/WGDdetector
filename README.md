@@ -22,6 +22,9 @@ cd WGDdetector_path
 perl setup.pl
 ```
 
+# Results
+The dS dsitribution results of different software and datasets descripted in the WGDdetector parper (https://github.com/yongzhiyang2012/WGDdetector_paper_results).
+
 # Running 
 
 ```
