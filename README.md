@@ -1,6 +1,7 @@
 # WGDdetector
 
-WGDdetector: a pipeline for whole genome duplication (WGD) detecting with the genome or transcriptome annotations
+WGDdetector: a pipeline for whole genome duplication (WGD) detecting with the genome or transcriptome annotations. Our paper has been published at BMC Bioinformatics:  
+"Yang Y, Li Y, Chen Q, Sun Y, Lu Z: WGDdetector: a pipeline for detecting whole genome duplication events using the genome or transcriptome annotations. BMC Bioinformatics 2019, 20(1):75."
 
 # Install
 ## Software requirements (all path of the needed software should be list in this file WGDdetector_path/config/software.config)
