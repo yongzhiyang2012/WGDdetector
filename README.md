@@ -3,6 +3,13 @@
 ### WGDdetector: a pipeline for whole genome duplication (WGD) detecting with the genome or transcriptome annotations. Our paper has been published at BMC Bioinformatics:  
 "Yang Y, Li Y, Chen Q, Sun Y, Lu Z: WGDdetector: a pipeline for detecting whole genome duplication events using the genome or transcriptome annotations. BMC Bioinformatics 2019, 20(1):75."
 
+## We have updated the pipeline and using some more fast software or method to reduce the time wasting. The new pipeline also including 4 steps:  
+### 01: gene family clustering.  
+### 02: large gene family spliting and Ks estimating
+### 03: Ks hclustering
+### 04: outputing
+  
+  
 # Install
 ## Software requirements (all path of the needed software should be list in this file WGDdetector_path/config/software.config)
 * perl >5.0, including the perl moudule of threads and Bioperl
@@ -14,7 +21,8 @@
 * blast >= ncbi-blast-2.2.28+
 * BlastGraphMetrics (https://github.com/trgibbons/BlastGraphMetrics) 
 * mcl 
-* mafft
+* muscle
+* fastme
 
 ## Pipline install
 This pipline is a series perl scripts, you can just replace those scripts' header with the right perl path.
@@ -22,6 +30,12 @@ This pipline is a series perl scripts, you can just replace those scripts' heade
 cd WGDdetector_path
 perl setup.pl
 ```
+
+## Install test
+```
+cd example
+sh 00.run.sh
+```  
 
 # Results
 The dS dsitribution results of different software and datasets descripted in the WGDdetector parper (https://github.com/yongzhiyang2012/WGDdetector_paper_results).
