@@ -1,0 +1,7 @@
+library(ggplot2)
+aa=read.table("output/04.final_paralogs_ks/final.ks.distribution.list")
+aap=ggplot(aa,aes(V2))+geom_histogram(aes(V2, ..density..),binwidth = 0.01)+geom_density()+xlim(0,3)
+
+pdf(file="output/04.final_paralogs_ks/final.ks.distribution.list.pdf",width=5,height=3)
+aap
+dev.off()

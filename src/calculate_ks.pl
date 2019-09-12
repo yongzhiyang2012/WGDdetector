@@ -7,14 +7,15 @@ use Cwd 'abs_path';
 use Bio::AlignIO;
 use threads;
 
-my ($max_cpu,$cds,$pep,$mafft,$pal2nal)=@ARGV;
+my ($max_cpu,$cds,$pep,$muscle,$pal2nal)=@ARGV;
 die "perl $0 max_cpu cds_file pep_file mafft_path pal2nal_path\n" if (! $pal2nal);
 
 my $basedir=abs_path($0);
 $basedir=~s/\/[^\/]+\/[^\/]+$//;
 
 ## align ##
-my $cmd_align="$mafft --quiet --thread $max_cpu --auto $pep > $pep.align";
+#my $cmd_align="$mafft --quiet --thread $max_cpu --auto $pep > $pep.align";
+my $cmd_align="$muscle -in $pep -out $pep.align";
 system ("$cmd_align") == 0  or die "system $cmd_align failed: $?\n";
 ## pal2nal ##
 my $cmd_pal2nal="$pal2nal $pep.align $cds -output fasta > $cds.align";

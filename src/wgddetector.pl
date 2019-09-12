@@ -32,6 +32,14 @@ my $basedir=abs_path($0);
 $basedir=~s/\/[^\/]+\/[^\/]+$//;
 my %par=&read_config("$basedir/config/software.config");
 
+## phase raw input cds and pep
+print `date`;
+print "## phasing the raw input cds and pep\n";
+my $phaseseq_cmd="$basedir/bin/phase.id.pl $input_cds $input_pep $tmp_dir";
+system("$phaseseq_cmd");
+$input_cds=abs_path("$tmp_dir/tmp_cds.fa");
+$input_pep=abs_path("$tmp_dir/tmp_pep.fa");
+
 ## running clustering ##
 print `date`;
 `mkdir $output_dir/01.cluster` if (! -e "$output_dir/01.cluster");
@@ -59,22 +67,22 @@ print "## running ks estimating ##\n\n";
 if (! -e "$output_dir/01.cluster/all-protein-clustering.result"){
     die "no such file: $output_dir/01.cluster/all-protein-clustering.result\n";
 }
-my $run_split_seq_cmd="$basedir/bin/split_seq.pl $input_cds $input_pep $output_dir/01.cluster/all-protein-clustering.result $tmp_dir/02.ks_estimate $output_dir/02.ks_estimate $par{mafft} $par{pal2nal} $thread_num";
+
+my $run_split_seq_cmd="$basedir/bin/split_seq.pl $input_cds $input_pep $output_dir/01.cluster/all-protein-clustering.result $tmp_dir/02.ks_estimate $output_dir/02.ks_estimate $par{muscle} $par{pal2nal} $par{fastme} $par{Rscript} $thread_num";
 system("$run_split_seq_cmd");
-my @outRAWksdist;
-open (F,"$output_dir/01.cluster/all-protein-clustering.result")||die"$!";
-while (<F>) {
-    chomp;
-    my @a=split(/\s+/,$_);
-    $a[0]=~s/\:$//;
-    push @outRAWksdist,"$a[0]";
-}
-close F;
 my $parallel_run_ks_estimate_cmd="$par{parallel} -j $thread_num < $tmp_dir/02.ks_estimate/run.ks.sh";
 system("$parallel_run_ks_estimate_cmd");
 my $parallel_collect_ks_cmd="$par{parallel} -j $thread_num < $tmp_dir/02.ks_estimate/collect.ks.sh";
 system("$parallel_collect_ks_cmd");
-
+if (-e "$tmp_dir/02.ks_estimate/run.large.split.sh"){
+    print "## running large gene families\n";
+    my $third_thread_num=int($thread_num/3); $third_thread_num=1 if $third_thread_num == 0;
+    my $large_gf_split="$par{parallel} -j $third_thread_num < $tmp_dir/02.ks_estimate/run.large.split.sh";
+    system("$large_gf_split");
+    system("sh $tmp_dir/02.ks_estimate/run.large.split.merge_cmd.sh");
+    system("$par{parallel} -j $thread_num < $tmp_dir/02.ks_estimate/run.large.split.merge_cmd.ks.sh");
+    system("$par{parallel} -j $thread_num < $tmp_dir/02.ks_estimate/run.large.split.merge_cmd.ks.collect.sh");
+}
 `rm -r $tmp_dir/02.ks_estimate` if $clean eq 'yes';
 
 ## running Hierarchical Clustering ##
@@ -84,7 +92,9 @@ print "## running Hierarchical Clustering ##\n\n";
 `mkdir $tmp_dir/03.hierarchial_clustering` if (! -e "$tmp_dir/03.hierarchial_clustering");
 open (SHHC,">$tmp_dir/03.hierarchial_clustering/01.hcluster.all.sh");
 open (SUBGF,">$tmp_dir/03.hierarchial_clustering/02.sub_GF.sh");
+my @outRAWksdist=`ls $output_dir/02.ks_estimate/ks_martix`;
 for my $outRAWksdist (@outRAWksdist){
+    chomp $outRAWksdist;
     print SHHC "$basedir/bin/hclust_ks.pl $output_dir/02.ks_estimate/ks_martix/$outRAWksdist/ks.dist all $par{Rscript}\n";
     print SUBGF "$basedir/bin/sub_ks_family.pl $output_dir/02.ks_estimate/ks_martix/$outRAWksdist/ks.dist $output_dir/02.ks_estimate/ks_martix/$outRAWksdist/ks.dist.hcluster 5 $output_dir/03.hierarchial_clustering/$outRAWksdist\n";
 }

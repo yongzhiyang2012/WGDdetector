@@ -4,11 +4,12 @@ use warnings;
 use Bio::SeqIO;
 use Cwd 'abs_path';
 
-my ($cds,$pep,$cluster_file,$tmp,$outputdir,$mafft,$pal2nal,$thread_num)=@ARGV;
-die "perl $0 cds_file pep_file cluster_file tmp_dir outputdir maff pal2nal\n" if (! $thread_num);
+my ($cds,$pep,$cluster_file,$tmp,$outputdir,$muscle,$pal2nal,$fastme,$Rscript,$thread_num)=@ARGV;
+die "perl $0 cds_file pep_file cluster_file tmp_dir outputdir muscle pal2nal fastme Rscript thread_num\n" if (! $thread_num);
 
 `mkdir $tmp` if (! -e $tmp);
 `mkdir $tmp/align` if (! -e "$tmp/align");
+`mkdir $tmp/align_large` if (! -e "$tmp/align_large");
 
 my $basedir=abs_path($0);
 $basedir=~s/\/[^\/]+\/[^\/]+$//;
@@ -19,55 +20,40 @@ my %pep=&read_fasta($pep);
 
 open (RUNKS,">$tmp/run.ks.sh")||die"$!";
 open (COLLECTKS,">$tmp/collect.ks.sh")||die"$!";
+open (R2,">$tmp/run.large.split.sh");
+open (R3,">$tmp/run.large.split.merge_cmd.sh");
 for my $k1 (sort keys %list){
-    print COLLECTKS "perl $basedir/bin/collect_ks.pl $outputdir $k1 ";
+    #print COLLECTKS "perl $basedir/bin/collect_ks.pl $outputdir $k1 ";
     my @gene=sort keys %{$list{$k1}};
-    if (scalar(@gene) <= 2*$cluastermaxnum){
-        open (O1,">$tmp/align/$k1.split_0.input.cds.file");
-        open (O2,">$tmp/align/$k1.split_0.input.pep.file");
+    if (scalar(@gene) <= $cluastermaxnum){
+        open (O1,">$tmp/align/$k1.input.cds.file");
+        open (O2,">$tmp/align/$k1.input.pep.file");
         for my $geneid (@gene){
             print O1 ">$geneid\n$cds{$geneid}\n";
             print O2 ">$geneid\n$pep{$geneid}\n";
         }
         close O1;
         close O2;
-        print RUNKS "$basedir/bin/calculate_ks.pl $thread_num $tmp/align/$k1.split_0.input.cds.file $tmp/align/$k1.split_0.input.pep.file $mafft $pal2nal\n";
-        print COLLECTKS "$tmp/align/$k1.split_0.input.cds.file.align.output.ks.gz\n";
+        print RUNKS "$basedir/bin/calculate_ks.pl $thread_num $tmp/align/$k1.input.cds.file $tmp/align/$k1.input.pep.file $muscle $pal2nal\n";
+        print COLLECTKS "$basedir/bin/collect_ks.pl $outputdir $k1 $tmp/align/$k1.input.cds.file.align.output.ks.gz\n";
     }else{
-        my $maxnum=int((scalar(@gene)*$cluastermaxnum)/scalar(@gene));
-        $maxnum++ if $maxnum < ((scalar(@gene)*$cluastermaxnum)/scalar(@gene));
-        my %outseq;
-        my $combindnum=0;
-        for (my $i=0;$i<@gene;$i++){
-            if (($i+1) % $maxnum == 0){
-	$combindnum ++ ;
-            }
-            $outseq{$combindnum}{$gene[$i]}++;
+        `mkdir $tmp/align_large/$k1` if (! -e "$tmp/align_large/$k1");
+        open (O1,">$tmp/align_large/$k1/input.cds.file");
+        open (O2,">$tmp/align_large/$k1/input.pep.file");
+        for my $geneid (@gene){
+            print O1 ">$geneid\n$cds{$geneid}\n";
+            print O2 ">$geneid\n$pep{$geneid}\n";
         }
-        my @com=sort keys %outseq;
-        my $outfile=-1;
-        for (my $i=0;$i<@com;$i++){
-            for (my $j=$i+1;$j<@com;$j++){
-	$outfile++;
-	open (O1,">$tmp/align/$k1.split_$outfile.input.cds.file");
-	open (O2,">$tmp/align/$k1.split_$outfile.input.pep.file");
-	for my $k1 ($i,$j){
-	    for my $k2 (sort keys %{$outseq{$k1}}){
-	        print O1 ">$k2\n$cds{$k2}\n";
-	        print O2 ">$k2\n$pep{$k2}\n";
-	    }
-	}
-	close O1;
-	close O2;
-	print RUNKS "$basedir/bin/calculate_ks.pl $thread_num $tmp/align/$k1.split_$outfile.input.cds.file $tmp/align/$k1.split_$outfile.input.pep.file $mafft $pal2nal\n";
-	print COLLECTKS "$tmp/align/$k1.split_$outfile.input.cds.file.align.output.ks.gz ";
-            }
-        }
+        close O1;
+        close O2;
+        print R2 "$basedir/bin/split_large_gf.pl $tmp/align_large/$k1/input.pep.file $muscle $fastme $Rscript\n";
     }
-    print COLLECTKS "\n";
 }
 close RUNKS;
 close COLLECTKS;
+close R2;
+print R3 "$basedir/bin/phase.new_sub_GF_seq.pl $cds $pep $tmp $thread_num $muscle $pal2nal $outputdir\n";
+close R3;
 
 sub read_fasta{
     my ($tmp_in_file)=@_;
