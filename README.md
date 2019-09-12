@@ -3,7 +3,7 @@
 ### WGDdetector: a pipeline for whole genome duplication (WGD) detecting with the genome or transcriptome annotations. Our paper has been published at BMC Bioinformatics:  
 "Yang Y, Li Y, Chen Q, Sun Y, Lu Z: WGDdetector: a pipeline for detecting whole genome duplication events using the genome or transcriptome annotations. BMC Bioinformatics 2019, 20(1):75."
 
-## We have updated the pipeline and using some more fast software or method to reduce the time wasting. The new pipeline including 4 steps.  
+## We have updated the pipeline and using some more fast software or method to reduce the time wasting. The new pipeline also including 4 steps:  
 ### 01: gene family clustering.  
 ### 02: large gene family spliting and Ks estimating
 ### 03: Ks hclustering
